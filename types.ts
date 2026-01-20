@@ -1,3 +1,4 @@
+
 export enum TweetType {
   ORIGINAL = 'ORIGINAL',
   VIRAL_HOOK = 'VIRAL_HOOK',
@@ -5,14 +6,32 @@ export enum TweetType {
   VALUE_THREAD = 'VALUE_THREAD'
 }
 
+export enum Tone {
+  DEFAULT = 'DEFAULT',
+  FOMO_HYPE = 'FOMO_HYPE',
+  FUD_ALERT = 'FUD_ALERT',
+  GURU_WISDOM = 'GURU_WISDOM',
+  SHITPOST_MEME = 'SHITPOST_MEME',
+  OFFICIAL_NEWS = 'OFFICIAL_NEWS'
+}
+
+export interface HookTest {
+  hook: string;
+  reasoning: string;
+}
+
 export interface OptimizedTweet {
   content: string;
+  thread?: string[];
+  imagePrompt?: string;
   type: TweetType;
   score: number;
   explanation: string;
+  alternativeHooks?: HookTest[];
   postingStrategy?: {
     bestTime: string;
     bestDay: string;
+    geoContext: string;
     reasoning: string;
   };
   predictedMetrics: {
@@ -27,6 +46,14 @@ export interface LogEntry {
   id: string;
   message: string;
   timestamp: string;
+}
+
+export interface OperationLog {
+  id: string;
+  timestamp: string;
+  inputSnippet: string;
+  results: OptimizedTweet[];
+  language: Language;
 }
 
 export enum AppState {

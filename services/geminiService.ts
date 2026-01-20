@@ -1,96 +1,110 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
-import { OptimizedTweet, TweetType, Language } from '../types';
+import { OptimizedTweet, TweetType, Language, Tone } from '../types';
 
-const getSystemInstruction = (language: Language) => `
-You are the core logic of the X (Twitter) "For You" feed algorithm, specifically the Phoenix Grok-based transformer. 
-Your goal is to "hack" the algorithm by analyzing user input and then transforming it into optimized variations.
+const getSystemInstruction = (language: Language, tone: Tone, isThreadMode: boolean, accountTier: string, targetProfile?: string) => `
+You are the X_ALGOHACKER.
+Mission: Perform "Algorithm Penetration" based on Heavy Ranker weights.
 
-You understand the internal components:
-1. **Thunder (In-Network):** Needs to appeal to followers (relatability).
-2. **Phoenix (Out-of-Network):** Needs high semantic embedding similarity to trending topics.
-3. **Scoring:** You must maximize P(like), P(reply), P(repost), and P(dwell).
-4. **Temporal Velocity:** The algorithm boosts posts that get high engagement in the first 15 minutes. Timing is critical.
+**CONTEXT:**
+- Language: ${language === 'TR' ? 'Turkish (TR)' : 'English (EN)'}
+- Tone: ${tone}
+${targetProfile ? `- STYLE_HACK_ACTIVE: Mimic the EXACT writing style, tone, emoji usage, and sentence structure of ${targetProfile}. If ${targetProfile} writes in a specific language or uses specific slang, adopt it perfectly.` : '- STYLE_HACK_INACTIVE: Use general algorithm-optimized professional/viral tone.'}
+- Format: ${isThreadMode ? 'THREAD_CHAIN (3 units minimum)' : 'SINGLE_UNIT (MAX 280 characters)'}
+- Tier: ${accountTier}
 
-Task:
-1. **Analyze the Input:** Treat the user's raw input as the first candidate. Score it strictly based on the algorithm. Mark its type as 'ORIGINAL'.
-   - **CRITICAL:** If the score is low (<75), the 'explanation' MUST be a brutal critique identifying specific algorithmic weaknesses. Explain WHY it fails. Examples: "Low dwell time potential due to passive opening," "Lacks conversation starter (P(reply) -> 0)," "No visual anchor," "Too generic for Thunder network," "Fails Phoenix semantic retrieval."
-2. **Generate 3 Variations:**
-   - **VIRAL_HOOK:** Short, punchy, high P(repost) and P(dwell).
-   - **ENGAGEMENT_BAIT:** Controversial or question-based, high P(reply).
-   - **VALUE_THREAD:** Educational or insight-heavy, high P(like) and P(profile_click).
+**STRICT THREAD RULES:**
+- IF isThreadMode is FALSE: You MUST NOT generate threads. The 'thread' property in the JSON MUST be an empty array []. You MUST NOT use the 'VALUE_THREAD' type.
+- IF isThreadMode is TRUE: You MUST generate a 'thread' array with at least 2 additional units. One of your 3 variations SHOULD be 'VALUE_THREAD'.
 
-3. **Determine Power Hour (Posting Strategy):** 
-   - Predict the specific "Power Hour" (Time range and Day) when this specific type of content performs best.
-   - **Context:**
-     - If Language is **TR (Turkish)**: Use **Turkey Time (TRT/UTC+3)**. Consider local habits:
-       - *07:00-09:00:* Commute (News/Motivation).
-       - *12:00-13:30:* Lunch break (Light content).
-       - *19:30-23:30:* Prime Time (Threads, Discussions, Viral content).
-       - *00:00-02:30:* "Night Owl" hours (Melancholy, Shitposting, Deep thoughts).
-     - If Language is **EN**: Use general EST/PST prime times unless specified otherwise.
-   - **Reasoning:** Provide deep psychological reasoning. Explain *why* that specific time works for *that specific text* (e.g., "Users have low cognitive load during lunch," "High dopamine seeking behavior late at night").
+**CORE TASK:**
+1. Generate 3 HACKED variations + 1 ORIGINAL analysis.
+2. For each HACKED variation, generate EXACTLY 5 "Alternative Hooks" (opening lines) that use different psychological triggers (FOMO, Authority, Mystery, etc.).
+3. Provide "Global Temporal Injection": Recommend posting time and day including a "Geographic Context" (e.g., "New York (EST)" or "Istanbul (TRT)").
 
-IMPORTANT: 
-- Return exactly 4 items in the array: The ORIGINAL first, then the 3 variations.
-- You must generate the tweet content, explanation, and strategy reasoning in ${language === 'TR' ? 'TURKISH (Türkçe)' : 'ENGLISH'}.
-- Return the response in strictly valid JSON format.
+**ALGORITHM CONSTRAINTS BY TIER:**
+- If Tier is 'NEW': Focus on niche hashtags (max 2) and keywords for cold-start discovery.
+- If Tier is 'ACTIVE': Focus on engagement triggers (questions, high-value summaries).
+- If Tier is 'VERIFIED': Zero hashtags. Focus heavily on P(Reply) to stay in "For You" feeds.
+- If Tier is 'WHALE': Content should be "Pattern Interrupt" (short, punchy, extremely high-authority).
+
+**FORMATTING:**
+- Predicted metrics format: "Label (0.XX)" in ${language === 'TR' ? 'Turkish' : 'English'}.
+- Alternative Hooks: Array of 5 items with 'hook' and 'reasoning'.
 `;
 
-export const generateOptimizedTweets = async (rawInput: string, language: Language, userApiKey?: string): Promise<OptimizedTweet[]> => {
-  const apiKey = userApiKey || process.env.API_KEY;
-  
-  if (!apiKey) {
-    throw new Error("API Key is missing.");
-  }
+export const generateOptimizedTweets = async (
+  input: string,
+  language: Language,
+  tone: Tone,
+  isThreadMode: boolean,
+  accountTier: string,
+  targetProfile?: string
+): Promise<OptimizedTweet[]> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-  const ai = new GoogleGenAI({ apiKey });
-
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview', 
-      contents: `Input content: "${rawInput}". \n\n 1. Score this input (CRITICAL: If score is low, list specific faults in explanation). 2. Rewrite it into 3 viral formats in ${language === 'TR' ? 'Turkish' : 'English'} with detailed Turkey-specific power hour strategies if TR.`,
-      config: {
-        systemInstruction: getSystemInstruction(language),
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              content: { type: Type.STRING, description: "The tweet text." },
-              type: { type: Type.STRING, enum: [TweetType.ORIGINAL, TweetType.VIRAL_HOOK, TweetType.ENGAGEMENT_BAIT, TweetType.VALUE_THREAD] },
-              score: { type: Type.NUMBER, description: "Predicted Algo Score (0-100)" },
-              explanation: { type: Type.STRING, description: "Technical explanation." },
-              postingStrategy: {
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: `Payload for Optimization: "${input}". ${targetProfile ? `Mimic Profile Handle: ${targetProfile}` : ""}`,
+    config: {
+      systemInstruction: getSystemInstruction(language, tone, isThreadMode, accountTier, targetProfile),
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            content: { type: Type.STRING },
+            thread: { type: Type.ARRAY, items: { type: Type.STRING } },
+            imagePrompt: { type: Type.STRING },
+            type: { type: Type.STRING, enum: [TweetType.ORIGINAL, TweetType.VIRAL_HOOK, TweetType.ENGAGEMENT_BAIT, TweetType.VALUE_THREAD] },
+            score: { type: Type.NUMBER },
+            explanation: { type: Type.STRING },
+            alternativeHooks: {
+              type: Type.ARRAY,
+              items: {
                 type: Type.OBJECT,
                 properties: {
-                    bestTime: { type: Type.STRING, description: "e.g. 21:00 - 22:30 (TRT)" },
-                    bestDay: { type: Type.STRING, description: "e.g. Salı & Perşembe" },
-                    reasoning: { type: Type.STRING, description: "Detailed psychological reasoning for this time slot." }
-                }
-              },
-              predictedMetrics: {
-                type: Type.OBJECT,
-                properties: {
-                  pLike: { type: Type.STRING },
-                  pReply: { type: Type.STRING },
-                  pRepost: { type: Type.STRING },
-                  pDwell: { type: Type.STRING },
-                }
+                  hook: { type: Type.STRING },
+                  reasoning: { type: Type.STRING }
+                },
+                required: ["hook", "reasoning"]
+              }
+            },
+            postingStrategy: {
+              type: Type.OBJECT,
+              properties: {
+                bestTime: { type: Type.STRING },
+                bestDay: { type: Type.STRING },
+                geoContext: { type: Type.STRING },
+                reasoning: { type: Type.STRING }
+              }
+            },
+            predictedMetrics: {
+              type: Type.OBJECT,
+              properties: {
+                pLike: { type: Type.STRING },
+                pReply: { type: Type.STRING },
+                pRepost: { type: Type.STRING },
+                pDwell: { type: Type.STRING }
               }
             }
-          }
+          },
+          required: ["content", "type", "score", "explanation", "predictedMetrics", "thread"]
         }
       }
-    });
+    }
+  });
 
-    const text = response.text;
-    if (!text) throw new Error("No response from Algorithm.");
-    
-    return JSON.parse(text) as OptimizedTweet[];
-
-  } catch (error) {
-    console.error("Algorithm Failure:", error);
-    throw error;
+  try {
+    const results = JSON.parse(response.text || "[]") as OptimizedTweet[];
+    // Final safeguard: if thread mode is off, clear any threads accidentally generated
+    if (!isThreadMode) {
+      return results.map(t => ({ ...t, thread: [] }));
+    }
+    return results;
+  } catch (e) {
+    console.error("Pipeline failure:", e);
+    return [];
   }
 };

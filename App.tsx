@@ -1,310 +1,307 @@
-import React, { useState, useRef, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import MatrixRain from './components/MatrixRain';
+import SnowEffect from './components/SnowEffect';
 import TerminalOutput from './components/TerminalOutput';
 import ResultCard from './components/ResultCard';
 import TrendTicker from './components/TrendTicker';
+import ImpactSimulation from './components/ImpactSimulation';
+import HookTestCenter from './components/HookTestCenter';
 import { generateOptimizedTweets } from './services/geminiService';
-import { AppState, LogEntry, OptimizedTweet, Language, TweetType } from './types';
+import { AppState, LogEntry, OptimizedTweet, Language, Tone, OperationLog, TweetType } from './types';
+
+// Risky words list for shadowban scanning
+const RISKY_WORDS = [
+  'adult', 'nude', 'hate', 'scam', 'crypto-scam', 'kill', 'violence', 'porn', 
+  'kumar', 'bahis', 'çıplak', 'şiddet', 'dolandır', 'hakaret', 'terör', 'escort', 'jigolo'
+];
 
 const UI_TEXT = {
   EN: {
     title: 'X_AlgoHacker',
-    subtitle: '// GROK-BASED OPTIMIZATION ENGINE // FOR_YOU_FEED_INJECTOR',
-    inputLabel: 'INPUT_STREAM',
-    keyLabel: 'ACCESS_TOKEN (API KEY)',
-    placeholder: 'Enter your raw thought, draft, or concept here...',
-    keyPlaceholder: 'Enter Gemini API Key...',
-    buttonIdle: 'Hack The Algorithm',
-    buttonProcessing: 'Running Phoenix Algorithm...',
-    resultsTitle: 'OPTIMIZED_CANDIDATES',
-    originalTitle: 'INPUT_ANALYSIS',
-    logs: {
-      init: "X-AlgoHacker v1.0.4 Online.",
-      await: "Awaiting input for Candidate Pipeline...",
-      processStart: "Receiving input payload",
-      complete: "Candidate generation complete.",
-      rendering: "Rendering Top-K Results..."
+    subtitle: '// OPEN_SOURCE_ALGORITHM_OPTIMIZER // HEAVY_RANKER_COMPLIANT',
+    placeholder: 'Enter raw thought data for optimization...',
+    stylePlaceholder: 'Optional: @handle',
+    styleLabel: 'STYLE_HACK (OPTIONAL)',
+    buttonIdle: 'EXECUTE ALGO HACK',
+    buttonProcessing: 'HACKING_ALGORITHM...',
+    settings: 'MODULATION_CONTROLS',
+    historyTitle: 'MISSION_RECAP',
+    riskDetected: 'WARNING: RISK_DETECTED',
+    snowToggle: '❄️ LET_IT_SNOW',
+    tones: {
+      [Tone.DEFAULT]: 'DEFAULT_ALGO',
+      [Tone.FOMO_HYPE]: 'FOMO_HYPE',
+      [Tone.FUD_ALERT]: 'FUD_ALERT',
+      [Tone.GURU_WISDOM]: 'GURU_WISDOM',
+      [Tone.SHITPOST_MEME]: 'SHITPOST_MEME',
+      [Tone.OFFICIAL_NEWS]: 'OFFICIAL_NEWS'
     },
-    steps: [
-      "Initializing Home Mixer...",
-      "Authenticating with Thunder (In-Network)...",
-      "Connecting to Phoenix (Out-of-Network Retrieval)...",
-      "Hydrating User Action Sequence...",
-      "Generating Embeddings via Two-Tower Model...",
-      "Applying Candidate Isolation Mask...",
-      "Running Grok-1 Transformer Inference...",
-      "Calculating P(repost) and P(dwell) vectors...",
-      "Filtering blocked authors/muted keywords...",
-      "Optimizing for Diversity Scorer...",
-      "Finalizing Candidate Selection..."
-    ],
-    footer: {
-      session: "SESSION_ID",
-      latency: "THUNDER_LATENCY: 4ms | PHOENIX_LATENCY: 124ms"
+    tiers: {
+      'NEW': '🐣 NEW (Cold Start)',
+      'ACTIVE': '👤 ACTIVE (Standard)',
+      'VERIFIED': '💎 VERIFIED (Blue)',
+      'WHALE': '🐳 WHALE (Phenom)'
+    },
+    logs: {
+      init: "X-AlgoHacker v2.5.0 Online.",
+      start: "INIT: Heavy Ranker Connection...",
+      success: "SUCCESS: Algorithm hacked successfully.",
+      error: "CRITICAL: Node rejection detected.",
+      risk: "ALERT: Found terms that may trigger shadowban."
     }
   },
   TR: {
     title: 'X_AlgoHacker',
-    subtitle: '// GROK TABANLI OPTİMİZASYON MOTORU // FOR_YOU_FEED_ENJEKTÖRÜ',
-    inputLabel: 'GİRİŞ_AKIŞI',
-    keyLabel: 'ERİŞİM_TOKEN (API ANAHTARI)',
-    placeholder: 'Ham düşünceni, taslağını veya konseptini buraya gir...',
-    keyPlaceholder: 'Gemini API Anahtarını Gir...',
-    buttonIdle: 'Algoritmayı Hackle',
-    buttonProcessing: 'Phoenix Algoritması Çalıştırılıyor...',
-    resultsTitle: 'OPTİMİZE_ADAYLAR',
-    originalTitle: 'GİRİŞ_ANALİZİ',
-    logs: {
-      init: "X-AlgoHacker v1.0.4 Çevrimiçi.",
-      await: "Aday Hattı için giriş bekleniyor...",
-      processStart: "Giriş verisi alınıyor",
-      complete: "Aday üretimi tamamlandı.",
-      rendering: "Top-K Sonuçları İşleniyor..."
+    subtitle: '// AÇIK_KAYNAK_ALGORİTMA_OPTİMİZATÖRÜ // HEAVY_RANKER_UYUMLU',
+    placeholder: 'Optimizasyon için ham düşünce verisini girin...',
+    stylePlaceholder: 'Opsiyonel: @hesap',
+    styleLabel: 'STİL_HACK (OPSİYONEL)',
+    buttonIdle: 'ALGORİTMAYI HACKLE',
+    buttonProcessing: 'ALGORİTMA HACKLENİYOR...',
+    settings: 'MODÜLASYON_KONTROLLERİ',
+    historyTitle: 'OPERASYON_GEÇMİŞİ',
+    riskDetected: 'TEHLİKE: RİSK_TESPİTİ',
+    snowToggle: '❄️ KAR_YAGDIR',
+    tones: {
+      [Tone.DEFAULT]: 'VARSAYILAN_ALGO',
+      [Tone.FOMO_HYPE]: 'FOMO_HAYP',
+      [Tone.FUD_ALERT]: 'FUD_ALERTI',
+      [Tone.GURU_WISDOM]: 'GURU_BİLGELİĞİ',
+      [Tone.SHITPOST_MEME]: 'MEME_PAYLAŞIMI',
+      [Tone.OFFICIAL_NEWS]: 'RESMİ_HABER'
     },
-    steps: [
-      "Home Mixer Başlatılıyor...",
-      "Thunder ile Kimlik Doğrulama (Ağ-İçi)...",
-      "Phoenix'e Bağlanılıyor (Ağ-Dışı Erişim)...",
-      "Kullanıcı Eylem Dizisi İşleniyor...",
-      "Two-Tower Modeli ile Embedding Üretiliyor...",
-      "Aday İzolasyon Maskesi Uygulanıyor...",
-      "Grok-1 Transformer Çıkarımı Çalışıyor...",
-      "P(repost) ve P(dwell) Vektörleri Hesaplanıyor...",
-      "Engelli yazarlar/sessize alınanlar filtreleniyor...",
-      "Çeşitlilik Puanlayıcısı Optimize Ediliyor...",
-      "Aday Seçimi Sonuçlandırılıyor..."
-    ],
-    footer: {
-      session: "OTURUM_NO",
-      latency: "THUNDER_GECİKMESİ: 4ms | PHOENIX_GECİKMESİ: 124ms"
+    tiers: {
+      'NEW': '🐣 NEW (Cold Start)',
+      'ACTIVE': '👤 ACTIVE (Standart)',
+      'VERIFIED': '💎 VERIFIED (Blue)',
+      'WHALE': '🐳 WHALE (Fenomen)'
+    },
+    logs: {
+      init: "X-AlgoritmaHacker v2.5.0 Çevrimiçi.",
+      start: "BAŞLATILIYOR: Heavy Ranker Bağlantısı...",
+      success: "BAŞARILI: Algoritma başarıyla hacklendi.",
+      error: "KRİTİK HATA: Düğüm reddi tespit edildi.",
+      risk: "UYARI: Shadowban tetikleyebilecek hassas kelimeler bulundu."
     }
   }
 };
 
 const App: React.FC = () => {
   const [input, setInput] = useState('');
-  const [customApiKey, setCustomApiKey] = useState('');
+  const [targetProfile, setTargetProfile] = useState('');
   const [appState, setAppState] = useState<AppState>(AppState.IDLE);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [results, setResults] = useState<OptimizedTweet[]>([]);
-  const [apiKeyMissing, setApiKeyMissing] = useState(false);
-  const [language, setLanguage] = useState<Language>('EN');
-  const [minScore, setMinScore] = useState(0);
+  const [language, setLanguage] = useState<Language>('TR');
+  const [isSnowing, setIsSnowing] = useState(false);
+  const [selectedTone, setSelectedTone] = useState<Tone>(Tone.DEFAULT);
+  const [isThreadMode, setIsThreadMode] = useState(false);
+  const [accountTier, setAccountTier] = useState('ACTIVE');
+  const [history, setHistory] = useState<OperationLog[]>([]);
+  const [detectedRisks, setDetectedRisks] = useState<string[]>([]);
+  
+  const lastLoggedRisks = useRef<string>('');
 
   const text = UI_TEXT[language];
 
-  useEffect(() => {
-     addLog(text.logs.init);
-     
-     // Check for env key
-     if (!process.env.API_KEY) {
-         setApiKeyMissing(true);
-         addLog("WARNING: System ENV API_KEY not detected.");
-         addLog("Manual override required.");
-     } else {
-         addLog(text.logs.await);
-     }
-  }, [language]); 
-
   const addLog = (message: string) => {
-    const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" }) + "." + Math.floor(Math.random() * 999);
-    setLogs(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), message, timestamp }]);
+    setLogs(prev => [...prev, { 
+      id: Math.random().toString(36).substr(2, 9), 
+      message, 
+      timestamp: new Date().toLocaleTimeString(language === 'TR' ? 'tr-TR' : 'en-US', { hour12: false }) 
+    }]);
   };
 
-  const simulateProcessing = async () => {
-    for (const step of text.steps) {
-      if (Math.random() > 0.3) {
-        addLog(step);
-        await new Promise(r => setTimeout(r, Math.random() * 300 + 200));
-      }
+  useEffect(() => {
+    // Shadowban Scanner logic
+    const risks = RISKY_WORDS.filter(word => input.toLowerCase().includes(word));
+    setDetectedRisks(risks);
+    
+    // Anti-spam: Only log if risk set actually changes
+    const risksString = risks.join(',');
+    if (risks.length > 0 && risksString !== lastLoggedRisks.current) {
+      addLog(`${text.riskDetected}: [${risks.join(', ')}]`);
+      lastLoggedRisks.current = risksString;
+    } else if (risks.length === 0) {
+      lastLoggedRisks.current = '';
     }
-  };
+  }, [input, text.riskDetected]);
 
   const handleSubmit = async () => {
-    // If missing env key, user must provide custom key
-    if (!input.trim() || (apiKeyMissing && !customApiKey)) return;
+    if (!input.trim()) return;
 
     setAppState(AppState.PROCESSING);
     setResults([]);
     setLogs([]);
-    setMinScore(0);
-    addLog(`${text.logs.processStart}: "${input.substring(0, 20)}..."`);
+    addLog(text.logs.start);
+    addLog(language === 'TR' ? "AĞA SIZILIYOR: SimClusters protokolü bypass ediliyor..." : "PENETRATING_NETWORK: Bypassing SimClusters protocol...");
+    
+    if (targetProfile.trim()) {
+      addLog(language === 'TR' ? `STİL ENJEKSİYONU: ${targetProfile} yazım dili taklit ediliyor...` : `STYLE_INJECTION: Mimicking writing style of ${targetProfile}...`);
+    }
     
     try {
-      const processingPromise = simulateProcessing();
-      const apiPromise = generateOptimizedTweets(input, language, customApiKey);
+      const data = await generateOptimizedTweets(
+        input, 
+        language, 
+        selectedTone, 
+        isThreadMode,
+        accountTier,
+        targetProfile.trim() || undefined
+      );
 
-      const [_, data] = await Promise.all([processingPromise, apiPromise]);
-
-      addLog(text.logs.complete);
-      addLog(text.logs.rendering);
       setResults(data);
       setAppState(AppState.COMPLETE);
+      addLog(text.logs.success);
+      
+      setHistory(prev => [{
+        id: Math.random().toString(36).substr(2, 5).toUpperCase(),
+        timestamp: new Date().toLocaleTimeString(language === 'TR' ? 'tr-TR' : 'en-US'),
+        inputSnippet: input.substring(0, 40) + "...",
+        results: data,
+        language
+      }, ...prev].slice(0, 6));
 
     } catch (error) {
-      addLog(`ERR: Pipeline failed. ${error}`);
+      console.error(error);
       setAppState(AppState.ERROR);
+      addLog(text.logs.error);
     }
   };
 
   const originalTweet = results.find(r => r.type === TweetType.ORIGINAL);
-  const optimizedTweets = results
-    .filter(r => r.type !== TweetType.ORIGINAL)
-    .filter(r => r.score >= minScore);
+  const optimizedTweets = results.filter(r => r.type !== TweetType.ORIGINAL);
+  const bestCandidate = optimizedTweets.sort((a,b) => b.score - a.score)[0];
 
   return (
-    <div className="min-h-screen relative text-matrix-green font-mono selection:bg-matrix-green selection:text-black">
+    <div className="min-h-screen relative text-matrix-green font-mono selection:bg-matrix-green selection:text-black pb-24 bg-black overflow-x-hidden">
       <MatrixRain />
-      
-      {/* CRT Overlay Effect */}
+      {isSnowing && <SnowEffect />}
       <div className="fixed inset-0 crt-overlay pointer-events-none z-50"></div>
-      <div className="fixed inset-0 bg-gradient-to-b from-transparent to-black/30 pointer-events-none z-40"></div>
 
       <div className="relative z-10 container mx-auto px-4 py-8 max-w-4xl">
-        
-        {/* Header */}
-        <header className="mb-8 border-b-2 border-matrix-green pb-4 flex justify-between items-start">
+        <header className="mb-8 border-b border-matrix-green/30 pb-4 flex justify-between items-end">
           <div>
-            <h1 className="text-4xl md:text-6xl font-bold tracking-tighter uppercase glitch-text mb-2">
-              {text.title}
-            </h1>
-            <p className="text-matrix-dim text-sm md:text-base">
-              {text.subtitle}
-            </p>
+            <h1 className="text-4xl md:text-5xl font-black tracking-tighter uppercase glitch-text">{text.title}</h1>
+            <p className="text-matrix-dim text-[10px] tracking-[0.2em] mt-1">{text.subtitle}</p>
           </div>
-          
-          {/* Language Toggle */}
-          <div className="flex border border-matrix-green bg-black/80">
-             <button 
-               onClick={() => setLanguage('EN')} 
-               className={`px-3 py-1 font-bold ${language === 'EN' ? 'bg-matrix-green text-black' : 'text-matrix-green hover:bg-matrix-darkGreen'}`}
-             >
-               EN
-             </button>
-             <button 
-               onClick={() => setLanguage('TR')} 
-               className={`px-3 py-1 font-bold ${language === 'TR' ? 'bg-matrix-green text-black' : 'text-matrix-green hover:bg-matrix-darkGreen'}`}
-             >
-               TR
-             </button>
+          <div className="flex border border-matrix-green/40 bg-black/80">
+             <button onClick={() => setLanguage('EN')} className={`px-4 py-1 text-xs font-bold ${language === 'EN' ? 'bg-matrix-green text-black' : 'text-matrix-green'}`}>EN</button>
+             <button onClick={() => setLanguage('TR')} className={`px-4 py-1 text-xs font-bold ${language === 'TR' ? 'bg-matrix-green text-black' : 'text-matrix-green'}`}>TR</button>
           </div>
         </header>
 
         <TrendTicker />
 
-        {/* Input Section */}
-        <section className="mb-8 space-y-4">
-            {apiKeyMissing && (
-                <div className="relative group">
-                     <div className="absolute top-0 left-0 bg-red-900/80 text-white text-xs px-2 py-1 font-bold border border-red-500/50">
-                        {text.keyLabel}
-                    </div>
+        <section className="mb-6 bg-zinc-950 border border-matrix-darkGreen p-5 shadow-2xl">
+             <div className="text-[10px] text-matrix-dim uppercase mb-4 font-black tracking-widest flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-matrix-green rounded-full animate-pulse"></span> {text.settings}
+             </div>
+             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {/* 1. Tone Modulator */}
+                <div className="min-w-0">
+                    <label className="block text-matrix-green text-[9px] mb-2 uppercase font-bold">TONE_MODULATOR</label>
+                    <select value={selectedTone} onChange={(e) => setSelectedTone(e.target.value as Tone)} className="w-full bg-black border border-matrix-dim text-white p-2 text-[10px] focus:border-matrix-green outline-none uppercase font-mono">
+                        {Object.keys(text.tones).map((t) => (
+                            <option key={t} value={t}>{text.tones[t as Tone]}</option>
+                        ))}
+                    </select>
+                </div>
+                {/* 2. Authority */}
+                <div className="min-w-0">
+                    <label className="block text-matrix-green text-[9px] mb-2 uppercase font-bold">AUTHORITY</label>
+                    <select value={accountTier} onChange={(e) => setAccountTier(e.target.value)} className="w-full bg-black border border-matrix-dim text-white p-2 text-[10px] focus:border-matrix-green outline-none uppercase font-mono truncate">
+                        {Object.keys(text.tiers).map((key) => (
+                            <option key={key} value={key} className="bg-black text-white">{text.tiers[key as keyof typeof text.tiers]}</option>
+                        ))}
+                    </select>
+                </div>
+                {/* 3. Style Hack */}
+                <div className="min-w-0">
+                    <label className="block text-matrix-green text-[9px] mb-2 uppercase font-bold">{text.styleLabel}</label>
                     <input 
-                        type="password"
-                        value={customApiKey}
-                        onChange={(e) => setCustomApiKey(e.target.value)}
-                        placeholder={text.keyPlaceholder}
-                        className="w-full bg-black border-2 border-red-900/50 p-4 pt-8 text-white focus:outline-none focus:border-red-500 focus:shadow-[0_0_15px_rgba(255,0,0,0.3)] transition-all"
+                      type="text" 
+                      placeholder={text.stylePlaceholder}
+                      value={targetProfile}
+                      onChange={(e) => setTargetProfile(e.target.value)}
+                      className="w-full bg-black border border-matrix-dim text-white p-2 text-[10px] focus:border-matrix-green outline-none font-mono placeholder:text-zinc-700"
                     />
                 </div>
-            )}
-
-            <div className="relative">
-                <div className="absolute top-0 left-0 bg-matrix-green text-black text-xs px-2 py-1 font-bold">
-                    {text.inputLabel}
+                {/* 4. Thread Mode */}
+                <div className="flex items-end pb-1 min-w-0">
+                    <label className="flex items-center cursor-pointer select-none">
+                        <input type="checkbox" className="sr-only" checked={isThreadMode} onChange={(e) => setIsThreadMode(e.target.checked)} />
+                        <div className={`w-10 h-5 border-2 border-matrix-green/30 relative transition-all ${isThreadMode ? 'bg-matrix-green/20' : 'bg-black'}`}>
+                            <div className={`absolute top-0.5 left-0.5 w-3 h-3 transition-all ${isThreadMode ? 'translate-x-5 bg-matrix-green' : 'bg-matrix-dim'}`}></div>
+                        </div>
+                        <span className={`ml-3 text-[9px] uppercase font-black tracking-widest ${isThreadMode ? 'text-white' : 'text-zinc-600'}`}>THREAD</span>
+                    </label>
                 </div>
-                <textarea
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder={text.placeholder}
-                    className="w-full h-32 bg-black border-2 border-matrix-darkGreen p-4 pt-8 text-white focus:outline-none focus:border-matrix-green focus:shadow-[0_0_15px_rgba(0,255,65,0.3)] transition-all resize-none"
-                    disabled={appState === AppState.PROCESSING}
-                />
+             </div>
+        </section>
+
+        <section className="mb-8">
+            <div className="bg-zinc-950 border-t border-x border-zinc-800 p-2 flex justify-between items-center text-[10px]">
+                <div className="flex gap-4 items-center h-4">
+                    {detectedRisks.length > 0 && (
+                      <span className="text-red-500 font-bold animate-pulse flex items-center gap-1">
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                        {text.riskDetected}
+                      </span>
+                    )}
+                </div>
             </div>
-            
+            <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={text.placeholder}
+                className={`w-full h-40 bg-black border-2 ${detectedRisks.length > 0 ? 'border-red-900 shadow-[inset_0_0_20px_rgba(255,0,0,0.1)]' : 'border-matrix-darkGreen'} p-5 text-white focus:outline-none focus:border-matrix-green transition-all font-mono text-sm leading-relaxed`}
+                disabled={appState === AppState.PROCESSING}
+            />
             <button
                 onClick={handleSubmit}
-                disabled={appState === AppState.PROCESSING || !input.trim() || (apiKeyMissing && !customApiKey)}
-                className={`w-full py-3 text-xl font-bold uppercase tracking-widest border-2 transition-all duration-200
+                disabled={appState === AppState.PROCESSING || !input.trim()}
+                className={`w-full py-4 text-sm font-black uppercase tracking-[0.5em] border-x-2 border-b-2 transition-all
                     ${appState === AppState.PROCESSING 
-                        ? 'bg-matrix-darkGreen border-matrix-darkGreen text-gray-400 cursor-wait' 
-                        : (apiKeyMissing && !customApiKey) 
-                            ? 'bg-gray-900 border-gray-700 text-gray-500 cursor-not-allowed'
-                            : 'bg-black border-matrix-green text-matrix-green hover:bg-matrix-green hover:text-black hover:shadow-[0_0_20px_rgba(0,255,65,0.6)]'
+                        ? 'bg-matrix-darkGreen text-black cursor-wait animate-pulse' 
+                        : 'bg-black border-matrix-green text-matrix-green hover:bg-matrix-green hover:text-black'
                     }`}
             >
                 {appState === AppState.PROCESSING ? text.buttonProcessing : text.buttonIdle}
             </button>
         </section>
 
-        {/* Logs Section */}
-        {(appState === AppState.PROCESSING || logs.length > 0) && (
-            <section className="mb-8">
-                <TerminalOutput logs={logs} />
-            </section>
-        )}
+        {(appState === AppState.PROCESSING || logs.length > 0) && <TerminalOutput logs={logs} />}
 
-        {/* Results Section */}
         {appState === AppState.COMPLETE && results.length > 0 && (
-            <section className="animate-in fade-in slide-in-from-bottom-4 duration-1000 space-y-8">
+            <div className="mt-12 space-y-16">
+                {originalTweet && bestCandidate && <ImpactSimulation original={originalTweet} optimized={bestCandidate} language={language} />}
                 
-                {/* Original Analysis */}
-                {originalTweet && (
-                    <div>
-                        <div className="flex items-center mb-4">
-                            <span className="h-px bg-zinc-600 flex-grow opacity-50"></span>
-                            <span className="px-4 text-sm font-bold text-gray-400 tracking-widest">{text.originalTitle}</span>
-                            <span className="h-px bg-zinc-600 flex-grow opacity-50"></span>
-                        </div>
-                        <ResultCard tweet={originalTweet} index={0} language={language} />
-                    </div>
+                {bestCandidate && bestCandidate.alternativeHooks && (
+                    <HookTestCenter hooks={bestCandidate.alternativeHooks} language={language} />
                 )}
 
-                {/* Optimized Candidates */}
-                <div>
-                    <div className="flex flex-col md:flex-row items-end md:items-center justify-between mb-6 gap-4">
-                        <div className="flex items-center w-full">
-                            <span className="h-px bg-matrix-green flex-grow opacity-50"></span>
-                            <span className="px-4 text-xl font-bold text-white whitespace-nowrap">{text.resultsTitle}</span>
-                            <span className="h-px bg-matrix-green flex-grow opacity-50"></span>
-                        </div>
-                        
-                        {/* Score Filter Slider */}
-                        <div className="flex items-center space-x-3 w-full md:w-auto bg-black/40 p-2 border border-matrix-darkGreen/50 rounded">
-                             <label htmlFor="scoreFilter" className="text-xs font-bold text-matrix-dim uppercase whitespace-nowrap">
-                                Min Score: <span className="text-matrix-green">{minScore}</span>
-                             </label>
-                             <input 
-                                id="scoreFilter"
-                                type="range" 
-                                min="0" 
-                                max="100" 
-                                value={minScore} 
-                                onChange={(e) => setMinScore(Number(e.target.value))}
-                                className="w-32 h-1.5 bg-matrix-darkGreen rounded-lg appearance-none cursor-pointer accent-matrix-green outline-none"
-                             />
-                        </div>
+                <div className="space-y-10">
+                    <div className="flex items-center gap-4">
+                        <h2 className="text-xl font-black text-white whitespace-nowrap uppercase">{language === 'TR' ? 'OPTİMİZE_ADAYLAR' : 'OPTIMIZED_CANDIDATES'}</h2>
+                        <div className="h-px bg-matrix-green/20 w-full"></div>
                     </div>
-                    
-                    <div className="space-y-6">
-                        {optimizedTweets.map((tweet, index) => (
-                            <ResultCard key={index} tweet={tweet} index={index + 1} language={language} />
-                        ))}
-                        {optimizedTweets.length === 0 && (
-                             <div className="text-center py-12 border border-dashed border-matrix-dim/50 text-matrix-dim font-mono">
-                                 [ SYSTEM_NOTICE: NO_CANDIDATES_MEET_THRESHOLD_CRITERIA ]
-                             </div>
-                        )}
-                    </div>
+                    {optimizedTweets.map((tweet, idx) => (
+                        <ResultCard key={idx} tweet={tweet} index={idx + 1} language={language} />
+                    ))}
                 </div>
-
-                <div className="mt-8 text-center text-matrix-dim text-xs">
-                    <p>{text.footer.session}: {Math.random().toString(36).substring(7).toUpperCase()}</p>
-                    <p>{text.footer.latency}</p>
-                </div>
-            </section>
+            </div>
         )}
       </div>
+
+      {/* Snow Toggle Button */}
+      <button 
+        onClick={() => setIsSnowing(!isSnowing)}
+        className={`fixed bottom-8 right-8 z-[70] bg-black/80 border border-matrix-green/40 p-3 text-[10px] font-black tracking-widest text-matrix-green hover:bg-matrix-green hover:text-black transition-all shadow-[0_0_15px_rgba(0,255,65,0.1)] ${isSnowing ? 'bg-matrix-green/20' : ''}`}
+      >
+        {text.snowToggle}
+      </button>
     </div>
   );
 };
