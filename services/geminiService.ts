@@ -1,8 +1,9 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { OptimizedTweet, TweetType, Language, Tone, AudienceProfile } from '../types';
+import { OptimizedTweet, TweetType, Language, Tone, AudienceProfile, AiProvider } from '../types';
 import { AudienceService } from './audienceService';
 
+// Common prompt generator for all providers
 const getSystemInstruction = (
   language: Language, 
   tone: Tone, 
@@ -69,32 +70,18 @@ ${isAuditOnly
 `;
 };
 
-export const generateOptimizedTweets = async (
-  input: string,
-  language: Language,
-  tone: Tone,
-  isThreadMode: boolean,
-  accountTier: string,
-  targetProfile?: string,
-  isAuditOnly: boolean = false,
-  audienceProfile?: AudienceProfile,
-  apiKey?: string // Added optional API key parameter
-): Promise<OptimizedTweet[]> => {
-  
-  // Use provided key OR fallback to env var
-  const keyToUse = apiKey || process.env.API_KEY;
-
-  if (!keyToUse) {
-    throw new Error("API Key is missing. Please provide it in settings or environment variables.");
-  }
-
-  const ai = new GoogleGenAI({ apiKey: keyToUse });
-
+// --- GEMINI HANDLER ---
+const generateWithGemini = async (
+  apiKey: string,
+  prompt: string,
+  systemInstruction: string
+): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey });
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Payload for Optimization: "${input}". ${targetProfile ? `Mimic Profile Handle: ${targetProfile}` : ""}`,
+    contents: prompt,
     config: {
-      systemInstruction: getSystemInstruction(language, tone, isThreadMode, accountTier, targetProfile, isAuditOnly, audienceProfile),
+      systemInstruction,
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.ARRAY,
@@ -160,15 +147,155 @@ export const generateOptimizedTweets = async (
       }
     }
   });
+  return response.text || "[]";
+};
+
+// --- OPENAI & XAI (GROK) HANDLER ---
+const generateWithOpenAICompatible = async (
+  apiKey: string,
+  baseUrl: string,
+  model: string,
+  prompt: string,
+  systemInstruction: string
+): Promise<string> => {
+  const messages = [
+    { role: "system", content: systemInstruction + "\n\nIMPORTANT: YOU MUST RETURN ONLY RAW JSON ARRAY. NO MARKDOWN BLOCK. JUST THE JSON." },
+    { role: "user", content: prompt }
+  ];
+
+  // Schema definition for OpenAI to ensure JSON structure
+  const jsonSchema = {
+    type: "json_schema",
+    json_schema: {
+      name: "tweet_optimization_response",
+      schema: {
+        type: "object",
+        properties: {
+          tweets: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                content: { type: "string" },
+                thread: { type: "array", items: { type: "string" } },
+                imagePrompt: { type: "string" },
+                type: { type: "string", enum: [TweetType.ORIGINAL, TweetType.VIRAL_HOOK, TweetType.ENGAGEMENT_BAIT, TweetType.VALUE_THREAD] },
+                score: { type: "number" },
+                explanation: { type: "string" },
+                alternativeHooks: {
+                   type: "array",
+                   items: {
+                     type: "object",
+                     properties: { hook: { type: "string" }, reasoning: { type: "string" } },
+                     required: ["hook", "reasoning"]
+                   }
+                },
+                postingStrategy: {
+                   type: "object",
+                   properties: { bestTime: { type: "string" }, bestDay: { type: "string" }, geoContext: { type: "string" }, reasoning: { type: "string" } }
+                },
+                mlAnalysis: {
+                   type: "object",
+                   properties: {
+                      viralScore: { type: "number" },
+                      sentimentLabel: { type: "string" },
+                      enhancementTips: {
+                         type: "array",
+                         items: { type: "object", properties: { tip: { type: "string" }, impact: { type: "string" } } }
+                      }
+                   },
+                   required: ["viralScore", "enhancementTips", "sentimentLabel"]
+                },
+                predictedMetrics: {
+                   type: "object",
+                   properties: { pLike: { type: "string" }, pReply: { type: "string" }, pRepost: { type: "string" }, pDwell: { type: "string" } }
+                }
+              },
+              required: ["content", "type", "score", "explanation", "predictedMetrics", "thread", "mlAnalysis"]
+            }
+          }
+        },
+        required: ["tweets"]
+      }
+    }
+  };
+
+  const response = await fetch(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: model,
+      messages: messages,
+      response_format: { type: "json_object" }, // Generic JSON enforcement
+      temperature: 0.7
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(`API Error: ${response.status} - ${JSON.stringify(errorData)}`);
+  }
+
+  const data = await response.json();
+  const rawContent = data.choices[0].message.content;
+
+  // Sometimes OpenAI wraps result in a key even if we didn't ask, or we need to parse the schema wrapper
+  // We asked for raw array in prompt but schema might force object.
+  try {
+     const parsed = JSON.parse(rawContent);
+     if (Array.isArray(parsed)) return rawContent;
+     if (parsed.tweets && Array.isArray(parsed.tweets)) return JSON.stringify(parsed.tweets);
+     return rawContent; // Hope for the best
+  } catch(e) {
+    return rawContent;
+  }
+};
+
+
+export const generateOptimizedTweets = async (
+  input: string,
+  language: Language,
+  tone: Tone,
+  isThreadMode: boolean,
+  accountTier: string,
+  targetProfile?: string,
+  isAuditOnly: boolean = false,
+  audienceProfile?: AudienceProfile,
+  apiKey?: string,
+  provider: AiProvider = 'GEMINI'
+): Promise<OptimizedTweet[]> => {
+  
+  const keyToUse = apiKey || process.env.API_KEY;
+  if (!keyToUse) {
+    throw new Error("API Key is missing.");
+  }
+
+  const systemInstruction = getSystemInstruction(language, tone, isThreadMode, accountTier, targetProfile, isAuditOnly, audienceProfile);
+  const prompt = `Payload for Optimization: "${input}". ${targetProfile ? `Mimic Profile Handle: ${targetProfile}` : ""}`;
+
+  let jsonString = "";
 
   try {
-    const results = JSON.parse(response.text || "[]") as OptimizedTweet[];
+    if (provider === 'GEMINI') {
+      jsonString = await generateWithGemini(keyToUse, prompt, systemInstruction);
+    } else if (provider === 'OPENAI') {
+      jsonString = await generateWithOpenAICompatible(keyToUse, 'https://api.openai.com/v1', 'gpt-4o', prompt, systemInstruction);
+    } else if (provider === 'XAI') {
+      // Grok API (xAI) is OpenAI compatible
+      jsonString = await generateWithOpenAICompatible(keyToUse, 'https://api.x.ai/v1', 'grok-2-latest', prompt, systemInstruction);
+    }
+
+    const results = JSON.parse(jsonString || "[]") as OptimizedTweet[];
     if (!isThreadMode) {
       return results.map(t => ({ ...t, thread: [] }));
     }
     return results;
+
   } catch (e) {
     console.error("Pipeline failure:", e);
-    return [];
+    throw e;
   }
 };

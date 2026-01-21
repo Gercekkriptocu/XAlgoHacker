@@ -15,6 +15,14 @@ export enum Tone {
   OFFICIAL_NEWS = 'OFFICIAL_NEWS'
 }
 
+export type AiProvider = 'GEMINI' | 'OPENAI' | 'XAI';
+
+export interface SavedPersona {
+  id: string;
+  name: string;
+  handle: string; // The @handle or description to mimic
+}
+
 export interface HookTest {
   hook: string;
   reasoning: string;

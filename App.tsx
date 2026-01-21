@@ -10,9 +10,10 @@ import HookTestCenter from './components/HookTestCenter';
 import AudienceOnboarding from './components/AudienceOnboarding';
 import AudienceProfileCard from './components/AudienceProfileCard';
 import ApiKeyModal from './components/ApiKeyModal';
+import PersonaManager from './components/PersonaManager';
 import { generateOptimizedTweets } from './services/geminiService';
 import { AudienceService } from './services/audienceService';
-import { AppState, LogEntry, OptimizedTweet, Language, Tone, OperationLog, TweetType, AudienceProfile } from './types';
+import { AppState, LogEntry, OptimizedTweet, Language, Tone, OperationLog, TweetType, AudienceProfile, AiProvider } from './types';
 
 // Risky words list for shadowban scanning
 const RISKY_WORDS = [
@@ -36,7 +37,7 @@ const UI_TEXT = {
     riskDetected: 'WARNING: RISK_DETECTED',
     snowToggle: '❄️ LET_IT_SNOW',
     audienceBtn: '🎯 AUDIENCE_CALIBRATION',
-    changeKey: '🔑 CHANGE API KEY',
+    changeKey: '🔑 CHANGE PROVIDER',
     tones: {
       [Tone.DEFAULT]: 'DEFAULT_ALGO',
       [Tone.FOMO_HYPE]: 'FOMO_HYPE',
@@ -74,7 +75,7 @@ const UI_TEXT = {
     riskDetected: 'TEHLİKE: RİSK_TESPİTİ',
     snowToggle: '❄️ KAR_YAGDIR',
     audienceBtn: '🎯 KİTLE_KALİBRASYONU',
-    changeKey: '🔑 ANAHTARI DEĞİŞTİR',
+    changeKey: '🔑 SAĞLAYICI DEĞİŞTİR',
     tones: {
       [Tone.DEFAULT]: 'VARSAYILAN_ALGO',
       [Tone.FOMO_HYPE]: 'FOMO_HAYP',
@@ -118,8 +119,9 @@ const App: React.FC = () => {
   const [audienceProfile, setAudienceProfile] = useState<AudienceProfile | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
-  // API Key State
+  // API Key & Provider State
   const [apiKey, setApiKey] = useState<string>('');
+  const [provider, setProvider] = useState<AiProvider>('GEMINI');
   const [isApiKeyRequired, setIsApiKeyRequired] = useState(false);
   const [isManualKey, setIsManualKey] = useState(false);
 
@@ -131,12 +133,16 @@ const App: React.FC = () => {
     const envKey = process.env.API_KEY;
     if (envKey && envKey.length > 0 && !envKey.includes("placeholder")) {
       setApiKey(envKey);
+      setProvider('GEMINI'); // Default to Gemini if using generic Env Var
       setIsManualKey(false);
     } else {
       // 2. Check Local Storage
       const storedKey = localStorage.getItem('X_ALGO_KEY');
+      const storedProvider = localStorage.getItem('X_ALGO_PROVIDER') as AiProvider;
+      
       if (storedKey) {
         setApiKey(storedKey);
+        setProvider(storedProvider || 'GEMINI');
         setIsManualKey(true);
       } else {
         // 3. Require User Input
@@ -149,16 +155,19 @@ const App: React.FC = () => {
     setAudienceProfile(savedProfile);
   }, []);
 
-  const handleSaveApiKey = (key: string) => {
+  const handleSaveApiKey = (key: string, selectedProvider: AiProvider) => {
     localStorage.setItem('X_ALGO_KEY', key);
+    localStorage.setItem('X_ALGO_PROVIDER', selectedProvider);
     setApiKey(key);
+    setProvider(selectedProvider);
     setIsApiKeyRequired(false);
     setIsManualKey(true);
-    addLog(language === 'TR' ? "GÜVENLİK PROTOKOLÜ: Yerel anahtar doğrulandı." : "SECURITY PROTOCOL: Local key verified.");
+    addLog(language === 'TR' ? `GÜVENLİK PROTOKOLÜ: ${selectedProvider} Bağlantısı kuruldu.` : `SECURITY PROTOCOL: ${selectedProvider} Uplink established.`);
   };
 
   const clearApiKey = () => {
     localStorage.removeItem('X_ALGO_KEY');
+    localStorage.removeItem('X_ALGO_PROVIDER');
     setApiKey('');
     setIsApiKeyRequired(true);
     setIsManualKey(false);
@@ -200,7 +209,7 @@ const App: React.FC = () => {
     setResults([]);
     setLogs([]);
     addLog(text.logs.start);
-    addLog(language === 'TR' ? "AĞA SIZILIYOR: SimClusters protokolü bypass ediliyor..." : "PENETRATING_NETWORK: Bypassing SimClusters protocol...");
+    addLog(language === 'TR' ? `SAĞLAYICI: ${provider} ağına bağlanılıyor...` : `PROVIDER: Connecting to ${provider} network...`);
     
     if (audienceProfile) {
         addLog(language === 'TR' 
@@ -226,7 +235,8 @@ const App: React.FC = () => {
         targetProfile.trim() || undefined,
         auditOnly,
         audienceProfile || undefined,
-        apiKey // Pass the resolved API key
+        apiKey,
+        provider
       );
 
       setResults(data);
@@ -241,10 +251,10 @@ const App: React.FC = () => {
         language
       }, ...prev].slice(0, 6));
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
       setAppState(AppState.ERROR);
-      addLog(text.logs.error);
+      addLog(text.logs.error + ` (${error.message || 'Unknown'})`);
     }
   };
 
@@ -279,9 +289,16 @@ const App: React.FC = () => {
             <h1 className="text-4xl md:text-5xl font-black tracking-tighter uppercase glitch-text">{text.title}</h1>
             <p className="text-matrix-dim text-[10px] tracking-[0.2em] mt-1">{text.subtitle}</p>
           </div>
-          <div className="flex border border-matrix-green/40 bg-black/80">
-             <button onClick={() => setLanguage('EN')} className={`px-4 py-1 text-xs font-bold ${language === 'EN' ? 'bg-matrix-green text-black' : 'text-matrix-green'}`}>EN</button>
-             <button onClick={() => setLanguage('TR')} className={`px-4 py-1 text-xs font-bold ${language === 'TR' ? 'bg-matrix-green text-black' : 'text-matrix-green'}`}>TR</button>
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex border border-matrix-green/40 bg-black/80">
+              <button onClick={() => setLanguage('EN')} className={`px-4 py-1 text-xs font-bold ${language === 'EN' ? 'bg-matrix-green text-black' : 'text-matrix-green'}`}>EN</button>
+              <button onClick={() => setLanguage('TR')} className={`px-4 py-1 text-xs font-bold ${language === 'TR' ? 'bg-matrix-green text-black' : 'text-matrix-green'}`}>TR</button>
+            </div>
+            {provider && !isApiKeyRequired && (
+              <span className="text-[9px] text-matrix-dim bg-black px-2 py-0.5 border border-matrix-dim/30">
+                LINK: {provider === 'XAI' ? 'GROK' : provider}
+              </span>
+            )}
           </div>
         </header>
 
@@ -330,15 +347,20 @@ const App: React.FC = () => {
                         ))}
                     </select>
                 </div>
-                {/* 3. Style Hack */}
-                <div className="min-w-0">
+                {/* 3. Style Hack + Persona Manager */}
+                <div className="min-w-0 col-span-1">
                     <label className="block text-matrix-green text-[9px] mb-2 uppercase font-bold">{text.styleLabel}</label>
                     <input 
                       type="text" 
                       placeholder={text.stylePlaceholder}
                       value={targetProfile}
                       onChange={(e) => setTargetProfile(e.target.value)}
-                      className="w-full bg-black border border-matrix-dim text-white p-2 text-[10px] focus:border-matrix-green outline-none font-mono placeholder:text-zinc-700"
+                      className="w-full bg-black border border-matrix-dim text-white p-2 text-[10px] focus:border-matrix-green outline-none font-mono placeholder:text-zinc-700 mb-2"
+                    />
+                    <PersonaManager 
+                      currentProfile={targetProfile} 
+                      onSelect={(handle) => setTargetProfile(handle)} 
+                      language={language} 
                     />
                 </div>
                 {/* 4. Thread Mode */}
