@@ -9,6 +9,7 @@ import ImpactSimulation from './components/ImpactSimulation';
 import HookTestCenter from './components/HookTestCenter';
 import AudienceOnboarding from './components/AudienceOnboarding';
 import AudienceProfileCard from './components/AudienceProfileCard';
+import ApiKeyModal from './components/ApiKeyModal';
 import { generateOptimizedTweets } from './services/geminiService';
 import { AudienceService } from './services/audienceService';
 import { AppState, LogEntry, OptimizedTweet, Language, Tone, OperationLog, TweetType, AudienceProfile } from './types';
@@ -35,6 +36,7 @@ const UI_TEXT = {
     riskDetected: 'WARNING: RISK_DETECTED',
     snowToggle: '❄️ LET_IT_SNOW',
     audienceBtn: '🎯 AUDIENCE_CALIBRATION',
+    changeKey: '🔑 CHANGE API KEY',
     tones: {
       [Tone.DEFAULT]: 'DEFAULT_ALGO',
       [Tone.FOMO_HYPE]: 'FOMO_HYPE',
@@ -53,7 +55,7 @@ const UI_TEXT = {
       init: "X-AlgoHacker v2.5.0 Online.",
       start: "INIT: Heavy Ranker Connection...",
       success: "SUCCESS: Algorithm hacked successfully.",
-      error: "CRITICAL: Node rejection detected.",
+      error: "CRITICAL: Node rejection detected. Check API Key.",
       risk: "ALERT: Found terms that may trigger shadowban."
     }
   },
@@ -72,6 +74,7 @@ const UI_TEXT = {
     riskDetected: 'TEHLİKE: RİSK_TESPİTİ',
     snowToggle: '❄️ KAR_YAGDIR',
     audienceBtn: '🎯 KİTLE_KALİBRASYONU',
+    changeKey: '🔑 ANAHTARI DEĞİŞTİR',
     tones: {
       [Tone.DEFAULT]: 'VARSAYILAN_ALGO',
       [Tone.FOMO_HYPE]: 'FOMO_HAYP',
@@ -90,7 +93,7 @@ const UI_TEXT = {
       init: "X-AlgoritmaHacker v2.5.0 Çevrimiçi.",
       start: "BAŞLATILIYOR: Heavy Ranker Bağlantısı...",
       success: "BAŞARILI: Algoritma başarıyla hacklendi.",
-      error: "KRİTİK HATA: Düğüm reddi tespit edildi.",
+      error: "KRİTİK HATA: Düğüm reddi. API Anahtarını kontrol et.",
       risk: "UYARI: Shadowban tetikleyebilecek hassas kelimeler bulundu."
     }
   }
@@ -115,18 +118,51 @@ const App: React.FC = () => {
   const [audienceProfile, setAudienceProfile] = useState<AudienceProfile | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
+  // API Key State
+  const [apiKey, setApiKey] = useState<string>('');
+  const [isApiKeyRequired, setIsApiKeyRequired] = useState(false);
+  const [isManualKey, setIsManualKey] = useState(false);
+
   const lastLoggedRisks = useRef<string>('');
   const text = UI_TEXT[language];
 
   useEffect(() => {
+    // 1. Check for Env Var (Vercel)
+    const envKey = process.env.API_KEY;
+    if (envKey && envKey.length > 0 && !envKey.includes("placeholder")) {
+      setApiKey(envKey);
+      setIsManualKey(false);
+    } else {
+      // 2. Check Local Storage
+      const storedKey = localStorage.getItem('X_ALGO_KEY');
+      if (storedKey) {
+        setApiKey(storedKey);
+        setIsManualKey(true);
+      } else {
+        // 3. Require User Input
+        setIsApiKeyRequired(true);
+      }
+    }
+
     // Load profile on mount
     const savedProfile = AudienceService.loadProfile();
     setAudienceProfile(savedProfile);
-    
-    // Optional: If no profile exists, show onboarding automatically? 
-    // Uncomment next line if you want auto-popup
-    // if (!savedProfile) setShowOnboarding(true);
   }, []);
+
+  const handleSaveApiKey = (key: string) => {
+    localStorage.setItem('X_ALGO_KEY', key);
+    setApiKey(key);
+    setIsApiKeyRequired(false);
+    setIsManualKey(true);
+    addLog(language === 'TR' ? "GÜVENLİK PROTOKOLÜ: Yerel anahtar doğrulandı." : "SECURITY PROTOCOL: Local key verified.");
+  };
+
+  const clearApiKey = () => {
+    localStorage.removeItem('X_ALGO_KEY');
+    setApiKey('');
+    setIsApiKeyRequired(true);
+    setIsManualKey(false);
+  };
 
   const addLog = (message: string) => {
     setLogs(prev => [...prev, { 
@@ -153,6 +189,11 @@ const App: React.FC = () => {
 
   const handleSubmit = async (auditOnly: boolean = false) => {
     if (!input.trim()) return;
+
+    if (!apiKey) {
+      setIsApiKeyRequired(true);
+      return;
+    }
 
     setAppState(AppState.PROCESSING);
     setIsAuditMode(auditOnly);
@@ -184,7 +225,8 @@ const App: React.FC = () => {
         accountTier,
         targetProfile.trim() || undefined,
         auditOnly,
-        audienceProfile || undefined
+        audienceProfile || undefined,
+        apiKey // Pass the resolved API key
       );
 
       setResults(data);
@@ -228,6 +270,7 @@ const App: React.FC = () => {
       {isSnowing && <SnowEffect />}
       <div className="fixed inset-0 crt-overlay pointer-events-none z-50"></div>
       
+      {isApiKeyRequired && <ApiKeyModal onSave={handleSaveApiKey} language={language} />}
       {showOnboarding && <AudienceOnboarding onComplete={handleAudienceComplete} language={language} />}
 
       <div className="relative z-10 container mx-auto px-4 py-8 max-w-4xl">
@@ -249,14 +292,24 @@ const App: React.FC = () => {
                 <div className="flex items-center gap-2">
                     <span className="w-1.5 h-1.5 bg-matrix-green rounded-full animate-pulse"></span> {text.settings}
                 </div>
-                {!audienceProfile && (
+                <div className="flex gap-2">
+                  {!audienceProfile && (
+                      <button 
+                          onClick={() => setShowOnboarding(true)}
+                          className="text-[9px] bg-matrix-green/10 hover:bg-matrix-green/20 text-matrix-green border border-matrix-green/40 px-2 py-1 uppercase tracking-widest transition-all"
+                      >
+                          {text.audienceBtn}
+                      </button>
+                  )}
+                  {isManualKey && (
                     <button 
-                        onClick={() => setShowOnboarding(true)}
-                        className="text-[9px] bg-matrix-green/10 hover:bg-matrix-green/20 text-matrix-green border border-matrix-green/40 px-2 py-1 uppercase tracking-widest transition-all"
+                      onClick={clearApiKey}
+                      className="text-[9px] bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-900/40 px-2 py-1 uppercase tracking-widest transition-all"
                     >
-                        {text.audienceBtn}
+                      {text.changeKey}
                     </button>
-                )}
+                  )}
+                </div>
              </div>
              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 {/* 1. Tone Modulator */}

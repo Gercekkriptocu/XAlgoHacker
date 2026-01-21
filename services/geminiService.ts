@@ -77,9 +77,18 @@ export const generateOptimizedTweets = async (
   accountTier: string,
   targetProfile?: string,
   isAuditOnly: boolean = false,
-  audienceProfile?: AudienceProfile
+  audienceProfile?: AudienceProfile,
+  apiKey?: string // Added optional API key parameter
 ): Promise<OptimizedTweet[]> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
+  // Use provided key OR fallback to env var
+  const keyToUse = apiKey || process.env.API_KEY;
+
+  if (!keyToUse) {
+    throw new Error("API Key is missing. Please provide it in settings or environment variables.");
+  }
+
+  const ai = new GoogleGenAI({ apiKey: keyToUse });
 
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
@@ -154,7 +163,6 @@ export const generateOptimizedTweets = async (
 
   try {
     const results = JSON.parse(response.text || "[]") as OptimizedTweet[];
-    // Final safeguard: if thread mode is off, clear any threads accidentally generated
     if (!isThreadMode) {
       return results.map(t => ({ ...t, thread: [] }));
     }
