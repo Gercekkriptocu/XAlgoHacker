@@ -7,8 +7,11 @@ import ResultCard from './components/ResultCard';
 import TrendTicker from './components/TrendTicker';
 import ImpactSimulation from './components/ImpactSimulation';
 import HookTestCenter from './components/HookTestCenter';
+import AudienceOnboarding from './components/AudienceOnboarding';
+import AudienceProfileCard from './components/AudienceProfileCard';
 import { generateOptimizedTweets } from './services/geminiService';
-import { AppState, LogEntry, OptimizedTweet, Language, Tone, OperationLog, TweetType } from './types';
+import { AudienceService } from './services/audienceService';
+import { AppState, LogEntry, OptimizedTweet, Language, Tone, OperationLog, TweetType, AudienceProfile } from './types';
 
 // Risky words list for shadowban scanning
 const RISKY_WORDS = [
@@ -24,11 +27,14 @@ const UI_TEXT = {
     stylePlaceholder: 'Optional: @handle',
     styleLabel: 'STYLE_HACK (OPTIONAL)',
     buttonIdle: 'EXECUTE ALGO HACK',
+    buttonAudit: 'TEST TWEET ONLY',
     buttonProcessing: 'HACKING_ALGORITHM...',
+    buttonAuditProcessing: 'RUNNING_AUDIT...',
     settings: 'MODULATION_CONTROLS',
     historyTitle: 'MISSION_RECAP',
     riskDetected: 'WARNING: RISK_DETECTED',
     snowToggle: '❄️ LET_IT_SNOW',
+    audienceBtn: '🎯 AUDIENCE_CALIBRATION',
     tones: {
       [Tone.DEFAULT]: 'DEFAULT_ALGO',
       [Tone.FOMO_HYPE]: 'FOMO_HYPE',
@@ -58,11 +64,14 @@ const UI_TEXT = {
     stylePlaceholder: 'Opsiyonel: @hesap',
     styleLabel: 'STİL_HACK (OPSİYONEL)',
     buttonIdle: 'ALGORİTMAYI HACKLE',
+    buttonAudit: 'TWEET TEST',
     buttonProcessing: 'ALGORİTMA HACKLENİYOR...',
+    buttonAuditProcessing: 'ANALİZ YAPILIYOR...',
     settings: 'MODÜLASYON_KONTROLLERİ',
     historyTitle: 'OPERASYON_GEÇMİŞİ',
     riskDetected: 'TEHLİKE: RİSK_TESPİTİ',
     snowToggle: '❄️ KAR_YAGDIR',
+    audienceBtn: '🎯 KİTLE_KALİBRASYONU',
     tones: {
       [Tone.DEFAULT]: 'VARSAYILAN_ALGO',
       [Tone.FOMO_HYPE]: 'FOMO_HAYP',
@@ -100,10 +109,24 @@ const App: React.FC = () => {
   const [accountTier, setAccountTier] = useState('ACTIVE');
   const [history, setHistory] = useState<OperationLog[]>([]);
   const [detectedRisks, setDetectedRisks] = useState<string[]>([]);
+  const [isAuditMode, setIsAuditMode] = useState(false);
   
-  const lastLoggedRisks = useRef<string>('');
+  // Audience State
+  const [audienceProfile, setAudienceProfile] = useState<AudienceProfile | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
+  const lastLoggedRisks = useRef<string>('');
   const text = UI_TEXT[language];
+
+  useEffect(() => {
+    // Load profile on mount
+    const savedProfile = AudienceService.loadProfile();
+    setAudienceProfile(savedProfile);
+    
+    // Optional: If no profile exists, show onboarding automatically? 
+    // Uncomment next line if you want auto-popup
+    // if (!savedProfile) setShowOnboarding(true);
+  }, []);
 
   const addLog = (message: string) => {
     setLogs(prev => [...prev, { 
@@ -128,15 +151,26 @@ const App: React.FC = () => {
     }
   }, [input, text.riskDetected]);
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (auditOnly: boolean = false) => {
     if (!input.trim()) return;
 
     setAppState(AppState.PROCESSING);
+    setIsAuditMode(auditOnly);
     setResults([]);
     setLogs([]);
     addLog(text.logs.start);
     addLog(language === 'TR' ? "AĞA SIZILIYOR: SimClusters protokolü bypass ediliyor..." : "PENETRATING_NETWORK: Bypassing SimClusters protocol...");
     
+    if (audienceProfile) {
+        addLog(language === 'TR' 
+          ? `HEDEF KİTLE KİLİTLENDİ: ${audienceProfile.niche.toUpperCase()} protokolü aktif.` 
+          : `TARGET AUDIENCE LOCKED: ${audienceProfile.niche.toUpperCase()} protocol active.`);
+    }
+
+    if (auditOnly) {
+       addLog(language === 'TR' ? "MOD: Sadece Analiz (Varyasyonlar devre dışı)..." : "MODE: Audit Only (Variations disabled)...");
+    }
+
     if (targetProfile.trim()) {
       addLog(language === 'TR' ? `STİL ENJEKSİYONU: ${targetProfile} yazım dili taklit ediliyor...` : `STYLE_INJECTION: Mimicking writing style of ${targetProfile}...`);
     }
@@ -148,7 +182,9 @@ const App: React.FC = () => {
         selectedTone, 
         isThreadMode,
         accountTier,
-        targetProfile.trim() || undefined
+        targetProfile.trim() || undefined,
+        auditOnly,
+        audienceProfile || undefined
       );
 
       setResults(data);
@@ -170,6 +206,18 @@ const App: React.FC = () => {
     }
   };
 
+  const handleAudienceComplete = (profile: AudienceProfile) => {
+    setAudienceProfile(profile);
+    setShowOnboarding(false);
+    addLog(language === 'TR' ? "PROFİL KALİBRASYONU TAMAMLANDI." : "PROFILE CALIBRATION COMPLETE.");
+  };
+
+  const handleResetProfile = () => {
+    AudienceService.clearProfile();
+    setAudienceProfile(null);
+    setShowOnboarding(true);
+  };
+
   const originalTweet = results.find(r => r.type === TweetType.ORIGINAL);
   const optimizedTweets = results.filter(r => r.type !== TweetType.ORIGINAL);
   const bestCandidate = optimizedTweets.sort((a,b) => b.score - a.score)[0];
@@ -179,6 +227,8 @@ const App: React.FC = () => {
       <MatrixRain />
       {isSnowing && <SnowEffect />}
       <div className="fixed inset-0 crt-overlay pointer-events-none z-50"></div>
+      
+      {showOnboarding && <AudienceOnboarding onComplete={handleAudienceComplete} language={language} />}
 
       <div className="relative z-10 container mx-auto px-4 py-8 max-w-4xl">
         <header className="mb-8 border-b border-matrix-green/30 pb-4 flex justify-between items-end">
@@ -195,8 +245,18 @@ const App: React.FC = () => {
         <TrendTicker />
 
         <section className="mb-6 bg-zinc-950 border border-matrix-darkGreen p-5 shadow-2xl">
-             <div className="text-[10px] text-matrix-dim uppercase mb-4 font-black tracking-widest flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-matrix-green rounded-full animate-pulse"></span> {text.settings}
+             <div className="text-[10px] text-matrix-dim uppercase mb-4 font-black tracking-widest flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-matrix-green rounded-full animate-pulse"></span> {text.settings}
+                </div>
+                {!audienceProfile && (
+                    <button 
+                        onClick={() => setShowOnboarding(true)}
+                        className="text-[9px] bg-matrix-green/10 hover:bg-matrix-green/20 text-matrix-green border border-matrix-green/40 px-2 py-1 uppercase tracking-widest transition-all"
+                    >
+                        {text.audienceBtn}
+                    </button>
+                )}
              </div>
              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 {/* 1. Tone Modulator */}
@@ -242,6 +302,14 @@ const App: React.FC = () => {
         </section>
 
         <section className="mb-8">
+            {audienceProfile && (
+                <AudienceProfileCard 
+                    profile={audienceProfile} 
+                    language={language} 
+                    onReset={handleResetProfile} 
+                />
+            )}
+
             <div className="bg-zinc-950 border-t border-x border-zinc-800 p-2 flex justify-between items-center text-[10px]">
                 <div className="flex gap-4 items-center h-4">
                     {detectedRisks.length > 0 && (
@@ -259,35 +327,67 @@ const App: React.FC = () => {
                 className={`w-full h-40 bg-black border-2 ${detectedRisks.length > 0 ? 'border-red-900 shadow-[inset_0_0_20px_rgba(255,0,0,0.1)]' : 'border-matrix-darkGreen'} p-5 text-white focus:outline-none focus:border-matrix-green transition-all font-mono text-sm leading-relaxed`}
                 disabled={appState === AppState.PROCESSING}
             />
-            <button
-                onClick={handleSubmit}
-                disabled={appState === AppState.PROCESSING || !input.trim()}
-                className={`w-full py-4 text-sm font-black uppercase tracking-[0.5em] border-x-2 border-b-2 transition-all
-                    ${appState === AppState.PROCESSING 
-                        ? 'bg-matrix-darkGreen text-black cursor-wait animate-pulse' 
-                        : 'bg-black border-matrix-green text-matrix-green hover:bg-matrix-green hover:text-black'
-                    }`}
-            >
-                {appState === AppState.PROCESSING ? text.buttonProcessing : text.buttonIdle}
-            </button>
+            <div className="grid grid-cols-5 gap-0">
+                <button
+                    onClick={() => handleSubmit(false)}
+                    disabled={appState === AppState.PROCESSING || !input.trim()}
+                    className={`col-span-3 py-4 text-sm font-black uppercase tracking-[0.2em] border-l-2 border-y-2 transition-all
+                        ${appState === AppState.PROCESSING 
+                            ? 'bg-matrix-darkGreen text-black cursor-wait animate-pulse border-r-2' 
+                            : 'bg-black border-matrix-green text-matrix-green hover:bg-matrix-green hover:text-black'
+                        }`}
+                >
+                    {appState === AppState.PROCESSING && !isAuditMode ? text.buttonProcessing : text.buttonIdle}
+                </button>
+                <button
+                    onClick={() => handleSubmit(true)}
+                    disabled={appState === AppState.PROCESSING || !input.trim()}
+                    className={`col-span-2 py-4 text-sm font-black uppercase tracking-[0.2em] border-2 transition-all
+                        ${appState === AppState.PROCESSING 
+                            ? 'bg-zinc-800 text-zinc-500 cursor-wait' 
+                            : 'bg-black border-zinc-600 text-zinc-400 hover:bg-zinc-800 hover:text-white hover:border-zinc-400'
+                        }`}
+                >
+                    {appState === AppState.PROCESSING && isAuditMode ? text.buttonAuditProcessing : text.buttonAudit}
+                </button>
+            </div>
         </section>
 
         {(appState === AppState.PROCESSING || logs.length > 0) && <TerminalOutput logs={logs} />}
 
         {appState === AppState.COMPLETE && results.length > 0 && (
             <div className="mt-12 space-y-16">
-                {originalTweet && bestCandidate && <ImpactSimulation original={originalTweet} optimized={bestCandidate} language={language} />}
                 
-                {bestCandidate && bestCandidate.alternativeHooks && (
+                {/* 
+                   If Audit Mode: Only show the ORIGINAL card.
+                   If Hack Mode: Show Impact Simulation (A/B), Hook Tests, and Candidates.
+                */}
+                
+                {!isAuditMode && originalTweet && bestCandidate && (
+                    <ImpactSimulation original={originalTweet} optimized={bestCandidate} language={language} />
+                )}
+                
+                {!isAuditMode && bestCandidate && bestCandidate.alternativeHooks && (
                     <HookTestCenter hooks={bestCandidate.alternativeHooks} language={language} />
                 )}
 
                 <div className="space-y-10">
                     <div className="flex items-center gap-4">
-                        <h2 className="text-xl font-black text-white whitespace-nowrap uppercase">{language === 'TR' ? 'OPTİMİZE_ADAYLAR' : 'OPTIMIZED_CANDIDATES'}</h2>
+                        <h2 className="text-xl font-black text-white whitespace-nowrap uppercase">
+                            {isAuditMode 
+                              ? (language === 'TR' ? 'TWEET ANALİZ RAPORU' : 'TWEET AUDIT REPORT') 
+                              : (language === 'TR' ? 'OPTİMİZE_ADAYLAR' : 'OPTIMIZED_CANDIDATES')
+                            }
+                        </h2>
                         <div className="h-px bg-matrix-green/20 w-full"></div>
                     </div>
-                    {optimizedTweets.map((tweet, idx) => (
+
+                    {/* Show Original first if Audit Mode, otherwise hide Original from list and show only optimized */}
+                    {isAuditMode && originalTweet && (
+                         <ResultCard tweet={originalTweet} index={0} language={language} />
+                    )}
+
+                    {!isAuditMode && optimizedTweets.map((tweet, idx) => (
                         <ResultCard key={idx} tweet={tweet} index={idx + 1} language={language} />
                     ))}
                 </div>

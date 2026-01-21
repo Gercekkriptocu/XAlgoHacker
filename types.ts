@@ -20,6 +20,11 @@ export interface HookTest {
   reasoning: string;
 }
 
+export interface EnhancementTip {
+  tip: string;
+  impact: string; // e.g., "+15% Engagement"
+}
+
 export interface OptimizedTweet {
   content: string;
   thread?: string[];
@@ -33,6 +38,11 @@ export interface OptimizedTweet {
     bestDay: string;
     geoContext: string;
     reasoning: string;
+  };
+  mlAnalysis?: {
+    viralScore: number; // 0-100
+    sentimentLabel: string; // Positive, Negative, Neutral
+    enhancementTips: EnhancementTip[];
   };
   predictedMetrics: {
     pLike: string;
@@ -64,3 +74,64 @@ export enum AppState {
 }
 
 export type Language = 'EN' | 'TR';
+
+// --- AUDIENCE TYPES ---
+
+export interface AudienceProfile {
+  niche: string;
+  primaryInterests: string[];
+  contentStyle: ContentStyle;
+  tonePreference: TonePreference;
+  expertiseLevel: ExpertiseLevel;
+  preferredFormat: PreferredFormat;
+  confidence: 'low' | 'medium' | 'high';
+  createdAt: string;
+}
+
+export type ContentStyle = 
+  | 'educational'
+  | 'entertaining'
+  | 'controversial'
+  | 'personal_story'
+  | 'data_driven';
+
+export type TonePreference = 
+  | 'professional'
+  | 'casual'
+  | 'hype'
+  | 'motivational'
+  | 'analytical';
+
+export type ExpertiseLevel = 'beginner' | 'intermediate' | 'expert';
+
+export type PreferredFormat = 'threads' | 'short_tweets' | 'polls' | 'memes';
+
+export interface Question {
+  id: string;
+  text: {
+    EN: string;
+    TR: string;
+  };
+  type: 'single_choice' | 'multiple_choice' | 'text_input';
+  options?: QuestionOption[];
+  placeholder?: {
+    EN: string;
+    TR: string;
+  };
+}
+
+export interface QuestionOption {
+  label: {
+    EN: string;
+    TR: string;
+  };
+  value: string;
+  tags: string[];
+  emoji?: string;
+}
+
+export interface Answer {
+  questionId: string;
+  value: string | string[];
+  tags: string[];
+}

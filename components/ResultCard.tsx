@@ -29,8 +29,8 @@ const ResultCard: React.FC<ResultCardProps> = ({ tweet, index, language }) => {
   };
 
   const labels = {
-    EN: { logicTrace: 'Logic Trace:', predictedVectors: 'Predicted Vectors:', powerHour: 'GLOBAL_INJECTION_WINDOW (Power Hour):', copy: 'Copy Tweet', copyThread: 'Copy Full Thread', copyPrompt: 'Copy Image Prompt', score: 'SCORE', imagePrompt: 'GENERATIVE_IMG_PROMPT', threadMarker: 'THREAD_CHAIN' },
-    TR: { logicTrace: 'Mantık İzi:', predictedVectors: 'Tahmin Vektörleri:', powerHour: 'KÜRESEL ENJEKSİYON PENCERESİ:', copy: 'Tweet\'i Kopyala', copyThread: 'Zinciri Kopyala', copyPrompt: 'Prompt\'u Kopyala', score: 'PUAN', imagePrompt: 'GÖRSEL_ÜRETİM_KODU', threadMarker: 'ZİNCİR_AKIŞI' }
+    EN: { logicTrace: 'Logic Trace:', predictedVectors: 'Predicted Vectors:', powerHour: 'GLOBAL_INJECTION_WINDOW (Power Hour):', copy: 'Copy Tweet', copyThread: 'Copy Full Thread', copyPrompt: 'Copy Image Prompt', score: 'SCORE', imagePrompt: 'GENERATIVE_IMG_PROMPT', threadMarker: 'THREAD_CHAIN', mlTitle: 'RANDOM_FOREST_PREDICTOR', viralProb: 'VIRAL PROBABILITY' },
+    TR: { logicTrace: 'Mantık İzi:', predictedVectors: 'Tahmin Vektörleri:', powerHour: 'KÜRESEL ENJEKSİYON PENCERESİ:', copy: 'Tweet\'i Kopyala', copyThread: 'Zinciri Kopyala', copyPrompt: 'Prompt\'u Kopyala', score: 'PUAN', imagePrompt: 'GÖRSEL_ÜRETİM_KODU', threadMarker: 'ZİNCİR_AKIŞI', mlTitle: 'RANDOM_FOREST_TAHMİNLEYİCİ', viralProb: 'VİRAL OLMA İHTİMALİ' }
   };
 
   const currentLabels = labels[language];
@@ -39,6 +39,13 @@ const ResultCard: React.FC<ResultCardProps> = ({ tweet, index, language }) => {
 
   const copyToClipboard = (text: string) => navigator.clipboard.writeText(text);
   const copyThread = () => copyToClipboard([tweet.content, ...(tweet.thread || [])].join('\n\n'));
+
+  // ML Score Color
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return 'text-green-400';
+    if (score >= 60) return 'text-yellow-400';
+    return 'text-red-400';
+  };
 
   return (
     <div className={`relative group ${colors.bg} border-2 ${colors.border} p-6 mb-8 transition-all duration-500 ease-out ${colors.glow} ${!isOriginal && 'hover:-translate-y-1'}`}>
@@ -65,6 +72,42 @@ const ResultCard: React.FC<ResultCardProps> = ({ tweet, index, language }) => {
             </div>
         )}
       </div>
+
+      {/* ML PREDICTOR SECTION */}
+      {tweet.mlAnalysis && (
+        <div className="mb-6 bg-zinc-950/80 border border-zinc-800 p-4 font-mono">
+            <div className="flex items-center gap-2 mb-4 border-b border-zinc-800 pb-2">
+                <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+                <span className="text-[10px] text-blue-400 uppercase font-black tracking-widest">{currentLabels.mlTitle}</span>
+            </div>
+            
+            <div className="flex flex-col md:flex-row gap-6">
+                {/* Score Gauge */}
+                <div className="flex-shrink-0 w-full md:w-1/3">
+                    <div className="text-[9px] text-zinc-500 uppercase mb-1">{currentLabels.viralProb}</div>
+                    <div className="relative h-2 bg-zinc-800 rounded-full overflow-hidden mb-2">
+                        <div 
+                            className={`absolute top-0 left-0 h-full ${tweet.mlAnalysis.viralScore > 75 ? 'bg-green-500' : 'bg-blue-500'}`} 
+                            style={{width: `${tweet.mlAnalysis.viralScore}%`}}
+                        ></div>
+                    </div>
+                    <div className={`text-2xl font-black ${getScoreColor(tweet.mlAnalysis.viralScore)}`}>
+                        {tweet.mlAnalysis.viralScore}% <span className="text-[10px] text-zinc-500 font-normal">CONFIDENCE</span>
+                    </div>
+                </div>
+
+                {/* Tips */}
+                <div className="flex-1 space-y-2">
+                    {tweet.mlAnalysis.enhancementTips.map((tip, i) => (
+                        <div key={i} className="flex justify-between items-center text-[10px] border-l-2 border-zinc-800 pl-3 py-1">
+                            <span className="text-zinc-300">{tip.tip}</span>
+                            <span className="text-green-400 font-bold">{tip.impact}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+      )}
 
       {!isOriginal && tweet.imagePrompt && (
         <div className="mb-8 bg-black/60 border border-purple-500/30 p-4 rounded-sm group/prompt relative overflow-hidden">
