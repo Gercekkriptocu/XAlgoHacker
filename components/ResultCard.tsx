@@ -142,10 +142,14 @@ const ResultCard: React.FC<ResultCardProps> = ({ tweet, index, language }) => {
           <div>
               <span className={`block ${colors.text} uppercase font-bold mb-2 tracking-widest`}>{currentLabels.predictedVectors}</span>
               <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                  <div className="flex justify-between border-b border-zinc-800 pb-1"><span>Like:</span> <span className="text-white font-bold">{tweet.predictedMetrics.pLike}</span></div>
-                  <div className="flex justify-between border-b border-zinc-800 pb-1"><span>Reply:</span> <span className="text-white font-bold">{tweet.predictedMetrics.pReply}</span></div>
-                  <div className="flex justify-between border-b border-zinc-800 pb-1"><span>RT:</span> <span className="text-white font-bold">{tweet.predictedMetrics.pRepost}</span></div>
-                  <div className="flex justify-between border-b border-zinc-800 pb-1"><span>Dwell:</span> <span className="text-white font-bold">{tweet.predictedMetrics.pDwell}</span></div>
+                  <div className="flex justify-between border-b border-zinc-800 pb-1"><span>P(fav):</span> <span className="text-white font-bold">{tweet.predictedMetrics.pLike}</span></div>
+                  <div className="flex justify-between border-b border-zinc-800 pb-1"><span>P(reply):</span> <span className="text-white font-bold">{tweet.predictedMetrics.pReply}</span></div>
+                  <div className="flex justify-between border-b border-zinc-800 pb-1"><span>P(repost):</span> <span className="text-white font-bold">{tweet.predictedMetrics.pRepost}</span></div>
+                  <div className="flex justify-between border-b border-zinc-800 pb-1"><span>P(dwell):</span> <span className="text-white font-bold">{tweet.predictedMetrics.pDwell}</span></div>
+                  <div className="flex justify-between border-b border-zinc-800 pb-1"><span>P(click):</span> <span className="text-white font-bold">{tweet.predictedMetrics.pClick || '—'}</span></div>
+                  <div className="flex justify-between border-b border-zinc-800 pb-1"><span>P(share):</span> <span className="text-white font-bold">{tweet.predictedMetrics.pShare || '—'}</span></div>
+                  <div className="flex justify-between border-b border-zinc-800 pb-1"><span>P(follow):</span> <span className="text-white font-bold">{tweet.predictedMetrics.pFollow || '—'}</span></div>
+                  <div className="flex justify-between pb-1"><span className="text-red-400">P(neg):</span> <span className="text-red-400 font-bold">{tweet.predictedMetrics.pNegative || '0.00'}</span></div>
               </div>
           </div>
       </div>
