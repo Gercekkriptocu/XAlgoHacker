@@ -57,6 +57,10 @@ export interface OptimizedTweet {
     pReply: string;
     pRepost: string;
     pDwell: string;
+    pClick?: string;
+    pShare?: string;
+    pFollow?: string;
+    pNegative?: string;
   };
 }
 

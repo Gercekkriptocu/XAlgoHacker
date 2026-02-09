@@ -14,6 +14,7 @@ import PersonaManager from './components/PersonaManager';
 import { generateOptimizedTweets } from './services/geminiService';
 import { AudienceService } from './services/audienceService';
 import { AppState, LogEntry, OptimizedTweet, Language, Tone, OperationLog, TweetType, AudienceProfile, AiProvider } from './types';
+import { TrendData } from './services/trendService';
 
 // Risky words list for shadowban scanning
 const RISKY_WORDS = [
@@ -119,6 +120,9 @@ const App: React.FC = () => {
   const [audienceProfile, setAudienceProfile] = useState<AudienceProfile | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
+  // Live Trend State
+  const [liveTrends, setLiveTrends] = useState<TrendData | null>(null);
+
   // API Key & Provider State
   const [apiKey, setApiKey] = useState<string>('');
   const [provider, setProvider] = useState<AiProvider>('GEMINI');
@@ -217,6 +221,12 @@ const App: React.FC = () => {
           : `TARGET AUDIENCE LOCKED: ${audienceProfile.niche.toUpperCase()} protocol active.`);
     }
 
+    if (liveTrends && liveTrends.source !== 'OFFLINE_CACHE') {
+        addLog(language === 'TR'
+          ? `📡 CANLI GÜNDEM ENJEKTE EDİLDİ: ${liveTrends.trends.length} trend (${liveTrends.source})`
+          : `📡 LIVE TRENDS INJECTED: ${liveTrends.trends.length} trends (${liveTrends.source})`);
+    }
+
     if (auditOnly) {
        addLog(language === 'TR' ? "MOD: Sadece Analiz (Varyasyonlar devre dışı)..." : "MODE: Audit Only (Variations disabled)...");
     }
@@ -236,7 +246,8 @@ const App: React.FC = () => {
         auditOnly,
         audienceProfile || undefined,
         apiKey,
-        provider
+        provider,
+        liveTrends || undefined
       );
 
       setResults(data);
@@ -302,7 +313,12 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        <TrendTicker />
+        <TrendTicker 
+          language={language} 
+          apiKey={apiKey} 
+          provider={provider} 
+          onTrendsLoaded={(data) => setLiveTrends(data)} 
+        />
 
         <section className="mb-6 bg-zinc-950 border border-matrix-darkGreen p-5 shadow-2xl">
              <div className="text-[10px] text-matrix-dim uppercase mb-4 font-black tracking-widest flex items-center justify-between">
